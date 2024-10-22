@@ -13,6 +13,6 @@ type Indexerer interface {
 	GetTransaction(context.Context, string, bool) (*btcjson.TxRawResult, error)
 	GetBlockchainInfo(ctx context.Context) (*BlockChainInfo, error)
 	SendTransaction(ctx context.Context, transactionHex *wire.MsgTx) (string, error)
-	GetLastInscribedTransactionByPublicKey(ctx context.Context, publicKey string, blblockchainHeight int32, utxoThreshold float64) (*TxInfo, error)
+	GetLastInscribedTransactionsByPublicKey(ctx context.Context, publicKey string, blockchainHeight int32, utxoThreshold float64) ([]*TxInfo, error)
 	Disconnect()
 }

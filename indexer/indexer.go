@@ -368,8 +368,8 @@ func (i *Indexer) GetBlockchainInfo(ctx context.Context) (*BlockChainInfo, error
 	return &resp.Result, nil
 }
 
-// GetLastInscribedTransactionByPublicKey returns the txInfo of the last reveal inscription transaction added in a block
-func (i *Indexer) GetLastInscribedTransactionByPublicKey(ctx context.Context, publicKey string, blockchainHeight int32, utxoThreshold float64) (*TxInfo, error) {
+// GetLastInscribedTransactionsByPublicKey returns the txInfos of the last reveal inscription transaction added in a block
+func (i *Indexer) GetLastInscribedTransactionsByPublicKey(ctx context.Context, publicKey string, blockchainHeight int32, utxoThreshold float64) ([]*TxInfo, error) {
 	scriptHash, err := publicKeyToScriptHash(publicKey)
 	if err != nil {
 		return nil, err
@@ -384,13 +384,14 @@ func (i *Indexer) GetLastInscribedTransactionByPublicKey(ctx context.Context, pu
 	}
 
 	// get transactions only in last block
-	transactionsInLastBlock := []TxInfo{}
+	transactionsInLastBlock := []*TxInfo{}
 	for _, tx := range resp.Result {
 		if tx.Height == blockchainHeight {
-			transactionsInLastBlock = append(transactionsInLastBlock, tx)
+			transactionsInLastBlock = append(transactionsInLastBlock, &tx)
 		}
 	}
 
+	inscribedTransactions := []*TxInfo{}
 	for _, tx := range transactionsInLastBlock {
 
 		rawTx, err := i.GetTransaction(ctx, tx.TxHash, true)
@@ -402,11 +403,15 @@ func (i *Indexer) GetLastInscribedTransactionByPublicKey(ctx context.Context, pu
 			amount += vout.Value
 		}
 
-		// get only the review transaction
+		// get only the review transactions
 		if amount*btcutil.SatoshiPerBitcoin < utxoThreshold {
 			i.logger.Debugf("Tx: %s, Amount: %f, Threshold: %f", tx.TxHash, amount*btcutil.SatoshiPerBitcoin, utxoThreshold)
-			return &tx, nil
+			inscribedTransactions = append(inscribedTransactions, tx)
 		}
 	}
-	return nil, NewNoInscriptionError()
+
+	if len(inscribedTransactions) == 0 {
+		return nil, NewNoInscriptionError()
+	}
+	return inscribedTransactions, nil
 }

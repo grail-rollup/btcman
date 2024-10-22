@@ -8,7 +8,7 @@ import (
 // Clienter is the interface for creating inscriptions in a btc transaction
 type Clienter interface {
 	Inscribe(data []byte) error
-	DecodeInscription() (string, error)
+	DecodeInscription(revealTxHash string) (string, error)
 	Shutdown()
 }
 
