@@ -272,26 +272,8 @@ func (client *Client) Inscribe(data []byte) error {
 }
 
 // DecodeInscription reads the inscribed message from BTC by a transaction hash
-func (client *Client) DecodeInscription() (string, error) {
-	height, err := client.getBlockchainHeigth()
-	if err != nil {
-		return "", err
-	}
-
-	revealTx, err := client.IndexerClient.
-		GetLastInscribedTransactionByPublicKey(context.Background(), client.keychain.GetPublicKey(), height, float64(client.cfg.UtxoThreshold))
-	if err != nil {
-		switch err.(type) {
-		case indexer.NoInscription:
-			log.Warn(err)
-			return err.Error(), nil
-		default:
-			log.Error(err)
-		}
-		return "", err
-	}
-
-	tx, err := client.getTransaction(revealTx.TxHash)
+func (client *Client) DecodeInscription(revealTxHash string) (string, error) {
+	tx, err := client.getTransaction(revealTxHash)
 	if err != nil {
 		return "", err
 	}
