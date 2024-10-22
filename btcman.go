@@ -52,6 +52,14 @@ func NewClient(cfg Config, logger *log.Logger) (Clienter, error) {
 		return nil, err
 	}
 
+	var mode BtcmanMode
+	switch cfg.Mode {
+	case "reader":
+		mode = ReaderMode
+	case "writer":
+		mode = WriterMode
+	}
+
 	// Get address from the private key
 	address, err := indexer.PrivateKeyToAddress(cfg.PrivateKey, &network)
 	if err != nil {
@@ -69,7 +77,7 @@ func NewClient(cfg Config, logger *log.Logger) (Clienter, error) {
 	ticker := time.NewTicker(consolidationInterval)
 	stopChannel := make(chan struct{})
 
-	keychain, err := NewKeychain(cfg.PrivateKey, indexer, &network, logger)
+	keychain, err := NewKeychain(&cfg, mode, indexer, &network, logger)
 	if err != nil {
 		logger.Fatal(err)
 	}
