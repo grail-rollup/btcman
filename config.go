@@ -1,11 +1,17 @@
 package btcman
 
 type Config struct {
+	// Mode is the mode of the btcman: reader or writer
+	Mode string `mapstructure:"Mode"`
+
 	// Net is the type of network of the btc node
 	Net string `mapstructure:"Net"`
 
-	// PrivateKey is the private key for the btc node wallet
+	// PrivateKey is the private key for the btc node wallet, required only for writer mode
 	PrivateKey string `mapstructure:"PrivateKey"`
+
+	// PublicKey is the public key for the btc node wallet, required only for reader mode
+	PublicKey string `mapstructure:"PublicKey"`
 
 	// IndexerHost is the host of the indexer server
 	IndexerHost string `mapstructure:"IndexerHost"`
@@ -30,8 +36,9 @@ type Config struct {
 }
 
 func IsValidBtcConfig(cfg *Config) bool {
-	return cfg.Net != "" &&
-		cfg.PrivateKey != "" &&
+	return cfg.Mode != "" &&
+		cfg.Net != "" &&
+		(cfg.PrivateKey != "" || cfg.PublicKey != "") &&
 		cfg.IndexerHost != "" &&
 		cfg.IndexerPort != "" &&
 		cfg.ConsolidationInterval != 0 &&
