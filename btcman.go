@@ -284,9 +284,6 @@ func (client *Client) Inscribe(data []byte) error {
 	revealTxHash := revealTxHashList[0]
 	inscription := inscriptions[0]
 
-	log.Debug("CommitTxHash: %s", commitTxHash.String())
-	log.Debug("RevealTxHash: %s", revealTxHash.String())
-	log.Debug("Inscription: %s", inscription)
 	log.Debug("Successful inscription", "commitTx", commitTxHash.String(),
 		"revealTx", revealTxHash.String(), "inscription", inscription, "fees", fees)
 
