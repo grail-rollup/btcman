@@ -9,6 +9,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -23,15 +24,8 @@ func PrivateKeyToPublicKey(privateKey string) (string, error) {
 	return hex.EncodeToString(publicKey.SerializeCompressed()), nil
 }
 
-// PrivateKeyToAddress returns an address by a given private key
-func PrivateKeyToAddress(privateKeyStr string, network *chaincfg.Params) (btcutil.Address, error) {
-	privateKey, err := btcutil.DecodeWIF(privateKeyStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode private key: %v", err)
-	}
-
-	publicKey := privateKey.PrivKey.PubKey()
-
+// PublicKeyToAddress returns an address by a given private key
+func PublicKeyToAddress(publicKey *secp256k1.PublicKey, network *chaincfg.Params) (btcutil.Address, error) {
 	publicKeyHash := btcutil.Hash160(publicKey.SerializeCompressed())
 	address, err := btcutil.NewAddressWitnessPubKeyHash(publicKeyHash, network)
 	if err != nil {
@@ -41,9 +35,10 @@ func PrivateKeyToAddress(privateKeyStr string, network *chaincfg.Params) (btcuti
 	return address, nil
 }
 
-// privateKeyToAddress returns a script hash by a given public key
-func publicKeyToScriptHash(publicKey string) (string, error) {
-	sha256Hashed, err := calculateSHA256(publicKey)
+// publicKeyToScriptHash returns a script hash by a given public key
+func publicKeyToScriptHash(publicKey *secp256k1.PublicKey) (string, error) {
+	publicKeyStr := hex.EncodeToString(publicKey.SerializeCompressed())
+	sha256Hashed, err := calculateSHA256(publicKeyStr)
 	if err != nil {
 		return "", fmt.Errorf("error hashing public key with sha256: %s", err)
 	}

@@ -1,5 +1,10 @@
 package indexer
 
+type Transaction struct {
+	TxHash string `json:"tx_hash"`
+	Height int32  `json:"height"`
+}
+
 type UTXO struct {
 	TxPos  int    `json:"tx_pos"`
 	Value  int64  `json:"value"`

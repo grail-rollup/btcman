@@ -4,6 +4,7 @@ package btcman
 type BtcmanMode string
 
 const (
-	ReaderMode BtcmanMode = "reader"
-	WriterMode BtcmanMode = "writer"
+	ReaderMode  BtcmanMode = "reader"
+	WriterMode  BtcmanMode = "writer"
+	InvalidMode BtcmanMode = "invalid"
 )

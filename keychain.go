@@ -5,12 +5,12 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/0xPolygon/cdk/log"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/grail-rollup/btcman/indexer"
+	"github.com/ledgerwatch/log/v3"
 
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
@@ -22,11 +22,10 @@ type keychain struct {
 	privateKey    *secp256k1.PrivateKey
 	publicKey     *secp256k1.PublicKey
 	network       *chaincfg.Params
-	indexer       indexer.Indexerer
-	logger        *log.Logger
+	logger        log.Logger
 }
 
-func NewKeychain(cfg *Config, mode BtcmanMode, indexer indexer.Indexerer, network *chaincfg.Params, logger *log.Logger) (Keychainer, error) {
+func NewKeychain(cfg *Config, mode BtcmanMode, network *chaincfg.Params, logger log.Logger) (Keychainer, error) {
 	var privateKey *secp256k1.PrivateKey
 	var publicKey *secp256k1.PublicKey
 
@@ -56,12 +55,11 @@ func NewKeychain(cfg *Config, mode BtcmanMode, indexer indexer.Indexerer, networ
 
 	return &keychain{
 		mode:          mode,
-		logger:        logger,
 		privateKeyWIF: cfg.PrivateKey,
 		publicKey:     publicKey,
 		privateKey:    privateKey,
-		indexer:       indexer,
 		network:       network,
+		logger:        logger,
 	}, nil
 }
 
@@ -85,7 +83,7 @@ func (k *keychain) SignTransaction(rawTransaction *wire.MsgTx, indexer indexer.I
 
 		amount := int64(prevTx.Vout[txInput.PreviousOutPoint.Index].Value * btcutil.SatoshiPerBitcoin)
 
-		signature, err := k.generateSignature(rawTransaction, idx, amount, subscript)
+		signature, err := k.generateSignature(rawTransaction, idx, amount, subscript, indexer)
 		if err != nil {
 			return err
 		}
@@ -97,8 +95,8 @@ func (k *keychain) SignTransaction(rawTransaction *wire.MsgTx, indexer indexer.I
 }
 
 // generateSignature is a helper for SignTransaction that generates the actual signatures
-func (k *keychain) generateSignature(tx *wire.MsgTx, idx int, amt int64, subscript []byte) (wire.TxWitness, error) {
-	prevOutFetcher := NewPreviousOutPointFetcher(k.indexer, k.logger)
+func (k *keychain) generateSignature(tx *wire.MsgTx, idx int, amt int64, subscript []byte, indexer indexer.Indexerer) (wire.TxWitness, error) {
+	prevOutFetcher := NewPreviousOutPointFetcher(indexer, k.logger)
 
 	wifKey, err := btcutil.DecodeWIF(k.privateKeyWIF)
 	if err != nil {
@@ -126,6 +124,6 @@ func (k *keychain) generateSignature(tx *wire.MsgTx, idx int, amt int64, subscri
 }
 
 // GetPublicKey returns the public key as string
-func (k *keychain) GetPublicKey() string {
-	return hex.EncodeToString(k.publicKey.SerializeCompressed())
+func (k *keychain) GetPublicKey() *secp256k1.PublicKey {
+	return k.publicKey
 }

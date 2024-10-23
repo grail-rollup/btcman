@@ -40,9 +40,5 @@ func IsValidBtcConfig(cfg *Config) bool {
 		cfg.Net != "" &&
 		(cfg.PrivateKey != "" || cfg.PublicKey != "") &&
 		cfg.IndexerHost != "" &&
-		cfg.IndexerPort != "" &&
-		cfg.ConsolidationInterval != 0 &&
-		cfg.ConsolidationTransactionFee != 0 &&
-		cfg.UtxoThreshold != 0 &&
-		cfg.MinUtxoConsolidationAmount != 0
+		cfg.IndexerPort != ""
 }

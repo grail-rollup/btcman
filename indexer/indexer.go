@@ -12,11 +12,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/0xPolygon/cdk/log"
-
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/ledgerwatch/log/v3"
 )
 
 const delim = byte('\n')
@@ -45,7 +45,7 @@ type container struct {
 
 // Indexer comunicates with the btc indexer
 type Indexer struct {
-	logger           *log.Logger
+	logger           log.Logger
 	transport        *transport
 	handlersLock     sync.RWMutex
 	handlers         map[uint64]chan *container
@@ -57,18 +57,16 @@ type Indexer struct {
 	isDebug          bool
 }
 
-func NewIndexer(isDebug bool, logger *log.Logger) *Indexer {
-
-	i := &Indexer{
-		logger:       logger,
+func NewIndexer(isDebug bool, logger log.Logger) *Indexer {
+	return &Indexer{
 		handlers:     make(map[uint64]chan *container),
 		pushHandlers: make(map[string][]chan *container),
 		errs:         make(chan error),
 		quit:         make(chan struct{}),
 		isDebug:      isDebug,
+		logger:       logger,
 	}
 
-	return i
 }
 
 // Start initializes the indexer goroutines
@@ -77,20 +75,20 @@ func (i *Indexer) Start(serverAddress string) {
 
 	connectCtx, _ := context.WithTimeout(ctx, time.Second*3)
 	if err := i.connect(connectCtx, serverAddress, nil); err != nil {
-		i.logger.Debugf("connect node: %v", err)
+		i.logger.Error("Connect node", "err", err)
 		return
 	}
 
 	go func() {
 		err := <-i.errors()
-		i.logger.Errorf("ran into error: %s", err)
+		i.logger.Error("Ran into error", "err", err)
 		i.Disconnect()
 	}()
 	indexerPingInterval := 5
 	go func() {
 		for {
 			if err := i.ping(ctx); err != nil {
-				i.logger.Fatal(err)
+				i.logger.Error("Failed to ping node", "err", err)
 			}
 
 			select {
@@ -115,7 +113,7 @@ func (i *Indexer) connect(ctx context.Context, addr string, config *tls.Config) 
 		return ErrIndexerConnected
 	}
 
-	transport, err := newTransport(ctx, addr, config, i.logger, i.isDebug)
+	transport, err := newTransport(ctx, addr, config, i.isDebug, i.logger)
 	if err != nil {
 		return err
 	}
@@ -163,7 +161,7 @@ func (i *Indexer) listen(ctx context.Context) {
 			msg := &response{}
 			if err := json.Unmarshal(bytes, msg); err != nil {
 				if i.isDebug {
-					i.logger.Debugf("unmarshal received message failed: %v", err)
+					i.logger.Debug("unmarshal received message failed", "err", err)
 				}
 
 				result.err = fmt.Errorf("unmarshal received message failed: %v", err)
@@ -279,7 +277,7 @@ func (i *Indexer) Disconnect() {
 func (i *Indexer) ping(ctx context.Context) error {
 	const method string = "server.ping"
 	err := i.request(ctx, method, []interface{}{}, nil)
-	log.Debug("Pinging indexer server")
+	i.logger.Debug("Pinging indexer server")
 	return err
 }
 
@@ -320,10 +318,28 @@ func (i *Indexer) blockchainTransactionGetNonVerbose(ctx context.Context, txid s
 }
 
 // ListUnspent returns a list of unspent UTXOs by given publicKey
-func (i *Indexer) ListUnspent(ctx context.Context, publicKey string) ([]*UTXO, error) {
+func (i *Indexer) ListUnspent(ctx context.Context, publicKey *secp256k1.PublicKey) ([]*UTXO, error) {
 	const method string = "blockchain.scripthash.listunspent"
 	resp := &struct {
 		Result []*UTXO `json:"result"`
+	}{}
+	scriptHash, err := publicKeyToScriptHash(publicKey)
+	if err != nil {
+		return nil, err
+	}
+	err = i.request(ctx, method, []interface{}{scriptHash}, resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Result, nil
+}
+
+// GetHistory return the history of the publicKey
+func (i *Indexer) GetHistory(ctx context.Context, publicKey *secp256k1.PublicKey) ([]*Transaction, error) {
+	const method string = "blockchain.scripthash.get_history"
+	resp := &struct {
+		Result []*Transaction `json:"result"`
 	}{}
 	scriptHash, err := publicKeyToScriptHash(publicKey)
 	if err != nil {
@@ -369,7 +385,7 @@ func (i *Indexer) GetBlockchainInfo(ctx context.Context) (*BlockChainInfo, error
 }
 
 // GetLastInscribedTransactionsByPublicKey returns the txInfos of the last reveal inscription transaction added in a block
-func (i *Indexer) GetLastInscribedTransactionsByPublicKey(ctx context.Context, publicKey string, blockchainHeight int32, utxoThreshold float64) ([]*TxInfo, error) {
+func (i *Indexer) GetLastInscribedTransactionsByPublicKey(ctx context.Context, publicKey *secp256k1.PublicKey, blockchainHeight int32, utxoThreshold float64) ([]*TxInfo, error) {
 	scriptHash, err := publicKeyToScriptHash(publicKey)
 	if err != nil {
 		return nil, err
@@ -405,7 +421,7 @@ func (i *Indexer) GetLastInscribedTransactionsByPublicKey(ctx context.Context, p
 
 		// get only the review transactions
 		if amount*btcutil.SatoshiPerBitcoin < utxoThreshold {
-			i.logger.Debugf("Tx: %s, Amount: %f, Threshold: %f", tx.TxHash, amount*btcutil.SatoshiPerBitcoin, utxoThreshold)
+			i.logger.Debug("Inscription found", "tx", tx.TxHash, "amount", amount*btcutil.SatoshiPerBitcoin, "threshold", utxoThreshold)
 			inscribedTransactions = append(inscribedTransactions, tx)
 		}
 	}

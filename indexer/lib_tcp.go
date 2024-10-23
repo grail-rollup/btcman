@@ -10,17 +10,17 @@ import (
 	"net"
 	"sync"
 
-	"github.com/0xPolygon/cdk/log"
+	"github.com/ledgerwatch/log/v3"
 )
 
 type transport struct {
+	logger    log.Logger
 	addr      string
 	tls       *tls.Config
 	mu        sync.Mutex
 	conn      net.Conn
 	responses chan []byte
 	errors    chan error
-	logger    *log.Logger
 	isDebug   bool
 }
 
@@ -34,7 +34,7 @@ func newConn(ctx context.Context, addr string, tlsConfig *tls.Config) (net.Conn,
 	return d.DialContext(ctx, "tcp", addr)
 }
 
-func newTransport(ctx context.Context, addr string, sslConfig *tls.Config, logger *log.Logger, isDebug bool) (*transport, error) {
+func newTransport(ctx context.Context, addr string, sslConfig *tls.Config, isDebug bool, logger log.Logger) (*transport, error) {
 	conn, err := newConn(ctx, addr, sslConfig)
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func newTransport(ctx context.Context, addr string, sslConfig *tls.Config, logge
 
 func (t *transport) SendMessage(ctx context.Context, body []byte) error {
 	if t.isDebug {
-		t.logger.Debugf("[debug] %s <- %s", t.conn.RemoteAddr(), body)
+		t.logger.Debug("Sending message", "addr", t.conn.RemoteAddr(), "body", body)
 	}
 
 	done := make(chan struct{})
@@ -107,7 +107,7 @@ func (t *transport) listen(ctx context.Context) {
 				}
 
 				if t.isDebug {
-					t.logger.Debugf("transport encountered error: %s", err)
+					t.logger.Debug("transport encountered error", "err", err)
 				}
 
 				switch {
@@ -127,7 +127,7 @@ func (t *transport) listen(ctx context.Context) {
 				break
 			}
 			if t.isDebug {
-				t.logger.Debugf("[debug] %s -> %s", t.conn.RemoteAddr(), line)
+				t.logger.Debug("Read message", "addr", t.conn.RemoteAddr(), "line", line)
 			}
 
 			responses <- line
