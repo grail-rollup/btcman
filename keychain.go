@@ -25,7 +25,7 @@ type keychain struct {
 	logger        log.Logger
 }
 
-func NewKeychain(cfg *Config, mode BtcmanMode, network *chaincfg.Params) (Keychainer, error) {
+func NewKeychain(cfg *Config, mode BtcmanMode, network *chaincfg.Params, logger log.Logger) (Keychainer, error) {
 	var privateKey *secp256k1.PrivateKey
 	var publicKey *secp256k1.PublicKey
 
@@ -59,6 +59,7 @@ func NewKeychain(cfg *Config, mode BtcmanMode, network *chaincfg.Params) (Keycha
 		publicKey:     publicKey,
 		privateKey:    privateKey,
 		network:       network,
+		logger:        logger,
 	}, nil
 }
 

@@ -14,6 +14,7 @@ import (
 )
 
 type transport struct {
+	logger    log.Logger
 	addr      string
 	tls       *tls.Config
 	mu        sync.Mutex
@@ -33,13 +34,14 @@ func newConn(ctx context.Context, addr string, tlsConfig *tls.Config) (net.Conn,
 	return d.DialContext(ctx, "tcp", addr)
 }
 
-func newTransport(ctx context.Context, addr string, sslConfig *tls.Config, isDebug bool) (*transport, error) {
+func newTransport(ctx context.Context, addr string, sslConfig *tls.Config, isDebug bool, logger log.Logger) (*transport, error) {
 	conn, err := newConn(ctx, addr, sslConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	t := &transport{
+		logger:    logger,
 		conn:      conn,
 		addr:      addr,
 		tls:       sslConfig,
@@ -53,7 +55,7 @@ func newTransport(ctx context.Context, addr string, sslConfig *tls.Config, isDeb
 
 func (t *transport) SendMessage(ctx context.Context, body []byte) error {
 	if t.isDebug {
-		log.Debug("Sending message", "addr", t.conn.RemoteAddr(), "body", body)
+		t.logger.Debug("Sending message", "addr", t.conn.RemoteAddr(), "body", body)
 	}
 
 	done := make(chan struct{})
@@ -105,7 +107,7 @@ func (t *transport) listen(ctx context.Context) {
 				}
 
 				if t.isDebug {
-					log.Debug("transport encountered error", "err", err)
+					t.logger.Debug("transport encountered error", "err", err)
 				}
 
 				switch {
@@ -125,7 +127,7 @@ func (t *transport) listen(ctx context.Context) {
 				break
 			}
 			if t.isDebug {
-				log.Debug("Read message", "addr", t.conn.RemoteAddr(), "line", line)
+				t.logger.Debug("Read message", "addr", t.conn.RemoteAddr(), "line", line)
 			}
 
 			responses <- line
@@ -136,7 +138,7 @@ func (t *transport) listen(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			if t.isDebug {
-				log.Debug("transport: listen: context finished, exiting loop")
+				t.logger.Debug("transport: listen: context finished, exiting loop")
 			}
 			return
 
@@ -159,7 +161,7 @@ func (t *transport) reconnect(ctx context.Context) (*bufio.Reader, error) {
 		return nil, fmt.Errorf("re-establish connection: %w", err)
 	}
 	if t.isDebug {
-		log.Debug("[debug] connection closed but managed to re-establish")
+		t.logger.Debug("[debug] connection closed but managed to re-establish")
 	}
 
 	return bufio.NewReader(t.conn), nil

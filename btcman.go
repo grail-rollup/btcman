@@ -22,91 +22,65 @@ import (
 
 // Client is the btc client that interacts with th btc chain
 type Client struct {
+	logger                   log.Logger
 	keychain                 Keychainer
 	netParams                *chaincfg.Params
 	cfg                      Config
 	address                  *btcutil.Address
 	IndexerClient            indexer.Indexerer
 	consolidationStopChannel chan struct{}
+	utxoThreshold            float64
 }
 
-const (
-	DEFAULT_CONSOLIDATION_INTERVAL        = 60
-	DEFAULT_CONSOLIDATION_TRANSACTION_FEE = 1000
-	DEFAULT_UTXO_THRESHOLD                = 5000
-	DEFAULT_MIN_UTXO_CONSOLIDATION_AMOUNT = 10
-)
-
 func NewClient(cfg Config) (Clienter, error) {
-	log.Debug("Creating btcman")
-
-	// Set default config values
-	if cfg.ConsolidationInterval == 0 {
-		cfg.ConsolidationInterval = DEFAULT_CONSOLIDATION_INTERVAL
-	}
-	if cfg.ConsolidationTransactionFee == 0 {
-		cfg.ConsolidationTransactionFee = DEFAULT_CONSOLIDATION_TRANSACTION_FEE
-	}
-	if cfg.UtxoThreshold == 0 {
-		cfg.UtxoThreshold = DEFAULT_UTXO_THRESHOLD
-	}
-	if cfg.MinUtxoConsolidationAmount == 0 {
-		cfg.MinUtxoConsolidationAmount = DEFAULT_MIN_UTXO_CONSOLIDATION_AMOUNT
-	}
+	logger := log.New()
+	logger.Debug("Creating btcman")
 
 	isValid := IsValidBtcConfig(&cfg)
 	if !isValid {
-		err := errors.New("invalid config")
-		return nil, err
+		return nil, errors.New("invalid config")
 	}
 
-	// Check if the network is valid
-	var network chaincfg.Params
-	switch cfg.Net {
-	case "mainnet":
-		network = chaincfg.MainNetParams
-	case "testnet":
-		network = chaincfg.TestNet3Params
-	case "regtest":
-		network = chaincfg.RegressionNetParams
-	default:
-		err := errors.New("invalid network")
-		return nil, err
-	}
-
-	var mode BtcmanMode
-	switch cfg.Mode {
-	case "reader":
-		mode = ReaderMode
-	case "writer":
-		mode = WriterMode
-	}
-
-	keychain, err := NewKeychain(&cfg, mode, &network)
+	// Load default consolidation values
+	consolidationInterval, consolidationTransactionFee, utxoThreshold, minUtxoConsolidationAmount := loadConsolidationValues(&cfg)
+	// Load network
+	network, err := loadNetwork(cfg.Net)
 	if err != nil {
 		return nil, err
 	}
-	address, err := indexer.PublicKeyToAddress(keychain.GetPublicKey(), &network)
+	// Load mode
+	mode, err := loadMode(cfg.Mode)
+	if err != nil {
+		return nil, err
+	}
 
-	indexer := indexer.NewIndexer(cfg.EnableIndexerDebug)
+	keychain, err := NewKeychain(&cfg, mode, network, logger)
+	if err != nil {
+		return nil, err
+	}
+	address, err := indexer.PublicKeyToAddress(keychain.GetPublicKey(), network)
+	if err != nil {
+		return nil, err
+	}
+
+	indexer := indexer.NewIndexer(cfg.EnableIndexerDebug, logger)
 	indexer.Start(fmt.Sprintf("%s:%s", cfg.IndexerHost, cfg.IndexerPort))
-
-	consolidateTxFee := float64(cfg.ConsolidationTransactionFee)
 
 	stopChannel := make(chan struct{})
 
 	btcman := Client{
+		logger:                   logger,
 		keychain:                 keychain,
 		cfg:                      cfg,
-		netParams:                &network,
+		netParams:                network,
 		address:                  &address,
 		IndexerClient:            indexer,
 		consolidationStopChannel: stopChannel,
+		utxoThreshold:            float64(utxoThreshold),
 	}
 
 	if mode == WriterMode {
-		consolidationInterval := time.Second * time.Duration(cfg.ConsolidationInterval)
-		ticker := time.NewTicker(consolidationInterval)
+		ticker := time.NewTicker(time.Second * time.Duration(consolidationInterval))
 
 		go func() {
 			for {
@@ -115,13 +89,13 @@ func NewClient(cfg Config) (Clienter, error) {
 					ticker.Stop()
 					return
 				case <-ticker.C:
-					log.Debug("Trying to consolidate")
+					logger.Debug("Trying to consolidate")
 					utxos, err := btcman.ListUnspent()
 					if err != nil {
-						log.Error("Failed to list utxos", "err", err)
+						logger.Error("Failed to list utxos", "err", err)
 					}
 
-					btcman.consolidateUTXOS(utxos, consolidateTxFee, cfg.MinUtxoConsolidationAmount)
+					btcman.consolidateUTXOS(utxos, float64(consolidationTransactionFee), minUtxoConsolidationAmount)
 				}
 			}
 		}()
@@ -146,21 +120,21 @@ func (client *Client) getUTXO() (*indexer.UTXO, error) {
 		return nil, fmt.Errorf("there are no UTXOs")
 	}
 
-	utxoIndex := client.getIndexOfUtxoAboveThreshold(float64(client.cfg.UtxoThreshold), utxos)
+	utxoIndex := client.getIndexOfUtxoAboveThreshold(client.utxoThreshold, utxos)
 	if utxoIndex == -1 {
 		return nil, fmt.Errorf("can't find utxo to inscribe")
 	}
 
 	utxo := utxos[utxoIndex]
 
-	log.Info("UTXO for address was found")
+	client.logger.Info("UTXO for address was found")
 	return utxo, nil
 }
 
 // consolidateUTXOS combines multiple utxo in one if the utxos are under a specific threshold and over a specific count
 func (client *Client) consolidateUTXOS(utxos []*indexer.UTXO, consolidationFee float64, minUtxoCountConsolidate int) {
 	if len(utxos) == 0 {
-		log.Info("Address has zero utxos.. skipping consolidation")
+		client.logger.Info("Address has zero utxos.. skipping consolidation")
 		return
 	}
 
@@ -170,45 +144,45 @@ func (client *Client) consolidateUTXOS(utxos []*indexer.UTXO, consolidationFee f
 
 	for _, utxo := range utxos {
 		amount := btcutil.Amount(utxo.Value)
-		thresholdAmount := btcutil.Amount(float64(client.cfg.UtxoThreshold))
+		thresholdAmount := btcutil.Amount(client.utxoThreshold)
 		if amount < thresholdAmount && amount > dustAmount {
 			inputs = append(inputs, btcjson.TransactionInput{
 				Txid: utxo.TxHash,
 				Vout: uint32(utxo.TxPos),
 			})
-			log.Debug("Adding utxo", "hash", utxo.TxHash, "amount", amount)
+			client.logger.Debug("Adding utxo", "hash", utxo.TxHash, "amount", amount)
 			totalAmount += amount
 		}
 	}
 
 	if len(inputs) < minUtxoCountConsolidate || totalAmount <= btcutil.Amount(consolidationFee) {
-		log.Info("Not enough UTXOs under the specified amount to consolidate.", "utxos",
-			len(inputs), "minUtxoCount", minUtxoCountConsolidate, "utxoThreshold", float64(client.cfg.UtxoThreshold))
+		client.logger.Info("Not enough UTXOs under the specified amount to consolidate.", "utxos",
+			len(inputs), "minUtxoCount", minUtxoCountConsolidate, "utxoThreshold", client.utxoThreshold)
 		return
 	}
 
-	log.Info("Consolidating utxos", "utxos", len(inputs), "amount", totalAmount)
+	client.logger.Info("Consolidating utxos", "utxos", len(inputs), "amount", totalAmount)
 
 	outputAmount := totalAmount - btcutil.Amount(consolidationFee*(float64(len(inputs))*0.1))
 
 	rawTx, err := client.createRawTransaction(inputs, &outputAmount, client.address)
 	if err != nil {
-		log.Error("error creating raw transaction", "err", err)
+		client.logger.Error("error creating raw transaction", "err", err)
 		return
 	}
 
 	err = client.keychain.SignTransaction(rawTx, client.IndexerClient)
 	if err != nil {
-		log.Error("error signing raw transaction", "err", err)
+		client.logger.Error("error signing raw transaction", "err", err)
 		return
 	}
 
 	txHash, err := client.IndexerClient.SendTransaction(context.Background(), rawTx)
 	if err != nil {
-		log.Error("error sending transaction", "err", err)
+		client.logger.Error("error sending transaction", "err", err)
 		return
 	}
-	log.Info("UTXOs consolidated successfully", "txHash", txHash)
+	client.logger.Info("UTXOs consolidated successfully", "txHash", txHash)
 }
 
 // getUtxoAboveThreshold returns the index of utxo over a specific threshold from a utxo set, if doesn't exist returns -1
@@ -231,7 +205,7 @@ func (client *Client) createInscriptionRequest(data []byte) (*InscriptionRequest
 	commitTxOutPoint := new(wire.OutPoint)
 	inTxid, err := chainhash.NewHashFromStr(utxo.TxHash)
 	if err != nil {
-		log.Error("Failed to create inscription request")
+		client.logger.Error("Failed to create inscription request")
 		return nil, err
 	}
 
@@ -284,7 +258,7 @@ func (client *Client) Inscribe(data []byte) error {
 	revealTxHash := revealTxHashList[0]
 	inscription := inscriptions[0]
 
-	log.Debug("Successful inscription", "commitTx", commitTxHash.String(),
+	client.logger.Debug("Successful inscription", "commitTx", commitTxHash.String(),
 		"revealTx", revealTxHash.String(), "inscription", inscription, "fees", fees)
 
 	return nil

@@ -45,6 +45,7 @@ type container struct {
 
 // Indexer comunicates with the btc indexer
 type Indexer struct {
+	logger           log.Logger
 	transport        *transport
 	handlersLock     sync.RWMutex
 	handlers         map[uint64]chan *container
@@ -56,17 +57,16 @@ type Indexer struct {
 	isDebug          bool
 }
 
-func NewIndexer(isDebug bool) *Indexer {
-
-	i := &Indexer{
+func NewIndexer(isDebug bool, logger log.Logger) *Indexer {
+	return &Indexer{
 		handlers:     make(map[uint64]chan *container),
 		pushHandlers: make(map[string][]chan *container),
 		errs:         make(chan error),
 		quit:         make(chan struct{}),
 		isDebug:      isDebug,
+		logger:       logger,
 	}
 
-	return i
 }
 
 // Start initializes the indexer goroutines
@@ -75,20 +75,20 @@ func (i *Indexer) Start(serverAddress string) {
 
 	connectCtx, _ := context.WithTimeout(ctx, time.Second*3)
 	if err := i.connect(connectCtx, serverAddress, nil); err != nil {
-		log.Error("Connect node", "err", err)
+		i.logger.Error("Connect node", "err", err)
 		return
 	}
 
 	go func() {
 		err := <-i.errors()
-		log.Error("Ran into error", "err", err)
+		i.logger.Error("Ran into error", "err", err)
 		i.Disconnect()
 	}()
 	indexerPingInterval := 5
 	go func() {
 		for {
 			if err := i.ping(ctx); err != nil {
-				log.Error("Failed to ping node", "err", err)
+				i.logger.Error("Failed to ping node", "err", err)
 			}
 
 			select {
@@ -113,7 +113,7 @@ func (i *Indexer) connect(ctx context.Context, addr string, config *tls.Config) 
 		return ErrIndexerConnected
 	}
 
-	transport, err := newTransport(ctx, addr, config, i.isDebug)
+	transport, err := newTransport(ctx, addr, config, i.isDebug, i.logger)
 	if err != nil {
 		return err
 	}
@@ -139,14 +139,14 @@ func (i *Indexer) connect(ctx context.Context, addr string, config *tls.Config) 
 func (i *Indexer) listen(ctx context.Context) {
 	for {
 		if i.transport == nil {
-			log.Warn("Transport is nil inside Indexer.listen(), exiting loop")
+			i.logger.Warn("Transport is nil inside Indexer.listen(), exiting loop")
 			return
 		}
 
 		select {
 		case <-ctx.Done():
 			if i.isDebug {
-				log.Debug("indexer: listen: context finished, exiting loop")
+				i.logger.Debug("indexer: listen: context finished, exiting loop")
 			}
 			return
 
@@ -161,7 +161,7 @@ func (i *Indexer) listen(ctx context.Context) {
 			msg := &response{}
 			if err := json.Unmarshal(bytes, msg); err != nil {
 				if i.isDebug {
-					log.Debug("unmarshal received message failed", "err", err)
+					i.logger.Debug("unmarshal received message failed", "err", err)
 				}
 
 				result.err = fmt.Errorf("unmarshal received message failed: %v", err)
@@ -257,12 +257,12 @@ func (i *Indexer) Disconnect() {
 	}
 
 	if i.transport == nil {
-		log.Warn("WARNING: disconnecting indexer before transport is set up")
+		i.logger.Warn("WARNING: disconnecting indexer before transport is set up")
 		return
 	}
 
 	if i.isDebug {
-		log.Debug("disconnecting indexer")
+		i.logger.Debug("disconnecting indexer")
 	}
 
 	close(i.quit)
@@ -277,7 +277,7 @@ func (i *Indexer) Disconnect() {
 func (i *Indexer) ping(ctx context.Context) error {
 	const method string = "server.ping"
 	err := i.request(ctx, method, []interface{}{}, nil)
-	log.Debug("Pinging indexer server")
+	i.logger.Debug("Pinging indexer server")
 	return err
 }
 
@@ -421,7 +421,7 @@ func (i *Indexer) GetLastInscribedTransactionsByPublicKey(ctx context.Context, p
 
 		// get only the review transactions
 		if amount*btcutil.SatoshiPerBitcoin < utxoThreshold {
-			log.Debug("Inscription found", "tx", tx.TxHash, "amount", amount*btcutil.SatoshiPerBitcoin, "threshold", utxoThreshold)
+			i.logger.Debug("Inscription found", "tx", tx.TxHash, "amount", amount*btcutil.SatoshiPerBitcoin, "threshold", utxoThreshold)
 			inscribedTransactions = append(inscribedTransactions, tx)
 		}
 	}
