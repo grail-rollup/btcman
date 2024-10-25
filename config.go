@@ -31,8 +31,8 @@ type Config struct {
 	// MinUtxoConsolidationAmount is the minimum number of UTXOS under the UtxoThreshold in order to perform a consolidation
 	MinUtxoConsolidationAmount int `mapstructure:"MinUtxoConsolidationAmount"`
 
-	// EnableIndexerDebug is a flag for enabling debuging messages in indexer client
-	EnableIndexerDebug bool `mapstructure:"EnableIndexerDebug"`
+	// EnableDebug is a flag for enabling debuging messages
+	EnableDebug bool `mapstructure:"EnableDebug"`
 }
 
 func IsValidBtcConfig(cfg *Config) bool {

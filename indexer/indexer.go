@@ -279,7 +279,9 @@ func (i *Indexer) Disconnect() {
 func (i *Indexer) ping(ctx context.Context) error {
 	const method string = "server.ping"
 	err := i.request(ctx, method, []interface{}{}, nil)
-	i.logger.Debug("Pinging indexer server")
+	if i.isDebug {
+		i.logger.Debug("Pinging indexer server")
+	}
 	return err
 }
 
@@ -423,7 +425,9 @@ func (i *Indexer) GetLastInscribedTransactionsByPublicKey(ctx context.Context, p
 
 		// get only the review transactions
 		if amount*btcutil.SatoshiPerBitcoin < utxoThreshold {
-			i.logger.Debug("Inscription found", "tx", tx.TxHash, "amount", amount*btcutil.SatoshiPerBitcoin, "threshold", utxoThreshold)
+			if i.isDebug {
+				i.logger.Debug("Inscription found", "tx", tx.TxHash, "amount", amount*btcutil.SatoshiPerBitcoin, "threshold", utxoThreshold)
+			}
 			inscribedTransactions = append(inscribedTransactions, tx)
 		}
 	}
