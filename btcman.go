@@ -6,9 +6,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/grail-rollup/btcman/common"
 	"github.com/grail-rollup/btcman/indexer"
 	"github.com/ledgerwatch/log/v3"
 
@@ -33,7 +35,9 @@ type Client struct {
 }
 
 func NewClient(cfg Config) (Clienter, error) {
-	logger := log.New()
+	logger := log.New("module", common.BTCMAN)
+	logger.SetHandler(log.StreamHandler(os.Stdout, log.TerminalFormat()))
+
 	logger.Debug("Creating btcman")
 
 	isValid := IsValidBtcConfig(&cfg)

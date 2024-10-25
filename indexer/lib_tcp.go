@@ -10,6 +10,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/grail-rollup/btcman/common"
 	"github.com/ledgerwatch/log/v3"
 )
 
@@ -34,14 +35,15 @@ func newConn(ctx context.Context, addr string, tlsConfig *tls.Config) (net.Conn,
 	return d.DialContext(ctx, "tcp", addr)
 }
 
-func newTransport(ctx context.Context, addr string, sslConfig *tls.Config, isDebug bool, logger log.Logger) (*transport, error) {
+func newTransport(ctx context.Context, addr string, sslConfig *tls.Config, isDebug bool, parentLogger log.Logger) (*transport, error) {
+	transportLogger := parentLogger.New("module", common.TCP)
 	conn, err := newConn(ctx, addr, sslConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	t := &transport{
-		logger:    logger,
+		logger:    transportLogger,
 		conn:      conn,
 		addr:      addr,
 		tls:       sslConfig,

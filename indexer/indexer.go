@@ -16,6 +16,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/grail-rollup/btcman/common"
 	"github.com/ledgerwatch/log/v3"
 )
 
@@ -57,14 +58,15 @@ type Indexer struct {
 	isDebug          bool
 }
 
-func NewIndexer(isDebug bool, logger log.Logger) *Indexer {
+func NewIndexer(isDebug bool, parentLogger log.Logger) *Indexer {
+	indexerLogger := parentLogger.New("module", common.INDEXER)
 	return &Indexer{
 		handlers:     make(map[uint64]chan *container),
 		pushHandlers: make(map[string][]chan *container),
 		errs:         make(chan error),
 		quit:         make(chan struct{}),
 		isDebug:      isDebug,
-		logger:       logger,
+		logger:       indexerLogger,
 	}
 
 }
