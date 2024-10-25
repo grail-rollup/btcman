@@ -6,9 +6,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/grail-rollup/btcman/common"
 	"github.com/grail-rollup/btcman/indexer"
 	"github.com/ledgerwatch/log/v3"
 
@@ -30,11 +32,17 @@ type Client struct {
 	IndexerClient            indexer.Indexerer
 	consolidationStopChannel chan struct{}
 	utxoThreshold            float64
+	isDebug                  bool
 }
 
 func NewClient(cfg Config) (Clienter, error) {
-	logger := log.New()
-	logger.Debug("Creating btcman")
+	logger := log.New("module", common.BTCMAN)
+	logger.SetHandler(log.StreamHandler(os.Stdout, log.TerminalFormat()))
+	isDebug := cfg.EnableDebug
+
+	if isDebug {
+		logger.Debug("Creating btcman")
+	}
 
 	isValid := IsValidBtcConfig(&cfg)
 	if !isValid {
@@ -63,7 +71,7 @@ func NewClient(cfg Config) (Clienter, error) {
 		return nil, err
 	}
 
-	indexer := indexer.NewIndexer(cfg.EnableIndexerDebug, logger)
+	indexer := indexer.NewIndexer(isDebug, logger)
 	indexer.Start(fmt.Sprintf("%s:%s", cfg.IndexerHost, cfg.IndexerPort))
 
 	stopChannel := make(chan struct{})
@@ -77,6 +85,7 @@ func NewClient(cfg Config) (Clienter, error) {
 		IndexerClient:            indexer,
 		consolidationStopChannel: stopChannel,
 		utxoThreshold:            float64(utxoThreshold),
+		isDebug:                  isDebug,
 	}
 
 	if mode == WriterMode {
@@ -89,7 +98,9 @@ func NewClient(cfg Config) (Clienter, error) {
 					ticker.Stop()
 					return
 				case <-ticker.C:
-					logger.Debug("Trying to consolidate")
+					if isDebug {
+						logger.Debug("Trying to consolidate")
+					}
 					utxos, err := btcman.ListUnspent()
 					if err != nil {
 						logger.Error("Failed to list utxos", "err", err)
@@ -150,7 +161,9 @@ func (client *Client) consolidateUTXOS(utxos []*indexer.UTXO, consolidationFee f
 				Txid: utxo.TxHash,
 				Vout: uint32(utxo.TxPos),
 			})
-			client.logger.Debug("Adding utxo", "hash", utxo.TxHash, "amount", amount)
+			if client.isDebug {
+				client.logger.Debug("Adding utxo", "hash", utxo.TxHash, "amount", amount)
+			}
 			totalAmount += amount
 		}
 	}
@@ -258,8 +271,10 @@ func (client *Client) Inscribe(data []byte) error {
 	revealTxHash := revealTxHashList[0]
 	inscription := inscriptions[0]
 
-	client.logger.Debug("Successful inscription", "commitTx", commitTxHash.String(),
-		"revealTx", revealTxHash.String(), "inscription", inscription, "fees", fees)
+	if client.isDebug {
+		client.logger.Debug("Successful inscription", "commitTx", commitTxHash.String(),
+			"revealTx", revealTxHash.String(), "inscription", inscription, "fees", fees)
+	}
 
 	return nil
 }

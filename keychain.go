@@ -9,6 +9,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/grail-rollup/btcman/common"
 	"github.com/grail-rollup/btcman/indexer"
 	"github.com/ledgerwatch/log/v3"
 
@@ -25,9 +26,10 @@ type keychain struct {
 	logger        log.Logger
 }
 
-func NewKeychain(cfg *Config, mode BtcmanMode, network *chaincfg.Params, logger log.Logger) (Keychainer, error) {
+func NewKeychain(cfg *Config, mode BtcmanMode, network *chaincfg.Params, parentLogger log.Logger) (Keychainer, error) {
 	var privateKey *secp256k1.PrivateKey
 	var publicKey *secp256k1.PublicKey
+	keychainLogger := parentLogger.New("module", common.KEYCHAIN)
 
 	if mode == WriterMode {
 		if cfg.PrivateKey == "" {
@@ -59,7 +61,7 @@ func NewKeychain(cfg *Config, mode BtcmanMode, network *chaincfg.Params, logger 
 		publicKey:     publicKey,
 		privateKey:    privateKey,
 		network:       network,
-		logger:        logger,
+		logger:        keychainLogger,
 	}, nil
 }
 
