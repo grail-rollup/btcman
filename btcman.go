@@ -422,3 +422,16 @@ func (client *Client) createRawTransaction(inputs []btcjson.TransactionInput, ou
 
 	return tx, nil
 }
+
+// GetBlockHeader returns a block header struct by a given block height
+func (client *Client) GetBlockHeader(height uint64) (*indexer.BlockHeader, error) {
+	blockHeaderHex, err := client.IndexerClient.GetBlockHeader(context.Background(), height)
+	if err != nil {
+		return nil, err
+	}
+	blockHeader, err := blockHeaderHex.ToHeader()
+	if err != nil {
+		return nil, err
+	}
+	return blockHeader, nil
+}

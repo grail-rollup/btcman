@@ -15,6 +15,7 @@ type Clienter interface {
 	ListUnspent() ([]*indexer.UTXO, error)
 	GetHistory() ([]*indexer.Transaction, error)
 	GetTransaction(txid string, verbose bool) (*btcjson.TxRawResult, error)
+	GetBlockHeader(height uint64) (*indexer.BlockHeader, error)
 	Shutdown()
 }
 
