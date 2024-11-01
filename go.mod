@@ -1,6 +1,6 @@
 module github.com/grail-rollup/btcman
 
-go 1.21
+go 1.19
 
 require (
 	github.com/btcsuite/btcd v0.24.2
@@ -11,7 +11,7 @@ require (
 	github.com/ledgerwatch/log/v3 v3.9.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/crypto v0.28.0
+	golang.org/x/crypto v0.22.0
 )
 
 require (

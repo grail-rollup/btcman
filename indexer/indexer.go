@@ -285,6 +285,19 @@ func (i *Indexer) ping(ctx context.Context) error {
 	return err
 }
 
+// GetBlockHeader returns a Block header hex string
+func (i *Indexer) GetBlockHeader(ctx context.Context, height uint64) (BlockHeaderHex, error) {
+	const method string = "blockchain.block.header"
+	resp := &struct {
+		Result BlockHeaderHex `json:"result"`
+	}{}
+	err := i.request(ctx, method, []interface{}{height}, &resp)
+	if err != nil {
+		return "", err
+	}
+	return resp.Result, nil
+}
+
 // GetTransaction returns a transaction from the btc indexer
 func (i *Indexer) GetTransaction(ctx context.Context, txID string, verbose bool) (*btcjson.TxRawResult, error) {
 	if !verbose {
