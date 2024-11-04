@@ -13,7 +13,7 @@ type Clienter interface {
 	DecodeInscription(revealTxHash string) (string, error)
 	GetBlockchainHeight() (int32, error)
 	ListUnspent() ([]*indexer.UTXO, error)
-	GetHistory(startHeight int) ([]*indexer.Transaction, error)
+	GetHistory(startHeight int, includeMempool bool) ([]*indexer.Transaction, error)
 	GetTransaction(txid string, verbose bool) (*btcjson.TxRawResult, error)
 	GetBlockHeader(height uint64) (*indexer.BlockHeader, error)
 	Shutdown()
