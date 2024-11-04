@@ -377,27 +377,82 @@ func (client *Client) ListUnspent() ([]*indexer.UTXO, error) {
 	return utxos, nil
 }
 
-// GetHistory return the confirmed history of the scripthash
-func (client *Client) GetHistory() ([]*indexer.Transaction, error) {
-	indexerResponse, err := client.IndexerClient.GetHistory(context.Background(), client.keychain.GetPublicKey())
+// GetHistory returns the confirmed history of the scripthash, starting from the startHeight if > 1
+func (client *Client) GetHistory(startHeight int, includeMempool bool) ([]*indexer.Transaction, error) {
+	transactions, err := client.IndexerClient.GetHistory(context.Background(), client.keychain.GetPublicKey())
 	if err != nil {
 		return nil, err
 	}
-	blockchainHeight, err := client.GetBlockchainHeight()
-	if err != nil {
-		return nil, err
-	}
+	ReverseTransactionList(transactions)
 
-	utxos := []*indexer.Transaction{}
-	for _, r := range indexerResponse {
-		// blockchain height - transacton block height + 1 in order to count the block of the transaction
-		confirmations := blockchainHeight - int32(r.Height) + 1
-		if confirmations > 0 {
-			utxos = append(utxos, r)
+	mempoolIndex := -1
+	for index := range transactions {
+		if transactions[index].Height > 0 {
+			mempoolIndex = index
+			break
 		}
 	}
+	var mempoolTransactions []*indexer.Transaction
+	var confirmedTransactions []*indexer.Transaction
+	if mempoolIndex != -1 {
+		confirmedTransactions = transactions[mempoolIndex:]
+		mempoolTransactions = transactions[:mempoolIndex]
+	} else {
+		confirmedTransactions = transactions
+		mempoolTransactions = []*indexer.Transaction{}
+	}
+	ReverseTransactionList(confirmedTransactions)
 
-	return utxos, nil
+	if startHeight > 1 {
+		blockchainHeight, err := client.GetBlockchainHeight()
+		if err != nil {
+			return nil, err
+		}
+		if startHeight > int(blockchainHeight) {
+			return nil, fmt.Errorf("start height is greater than the blockchain height")
+		}
+
+		startHeightIndex := getStartHeightIndex(confirmedTransactions, startHeight)
+		if startHeightIndex == -1 {
+			client.logger.Warn("no transactions found beyond specified start height", "startHeight", startHeight)
+			return []*indexer.Transaction{}, nil
+		}
+
+		confirmedTransactions = confirmedTransactions[startHeightIndex:]
+	}
+
+	if includeMempool {
+		transactions = append(mempoolTransactions, confirmedTransactions...)
+	} else {
+		transactions = confirmedTransactions
+	}
+
+	return transactions, nil
+}
+
+func ReverseTransactionList(slice []*indexer.Transaction) {
+	for i, j := 0, len(slice)-1; i < j; i, j = i+1, j-1 {
+		slice[i], slice[j] = slice[j], slice[i]
+	}
+}
+
+// getStartHeightIndex returns the index of the transaction with the target height
+func getStartHeightIndex(transactions []*indexer.Transaction, targetHeight int) int {
+	targetIndex := -1
+	left, right := 0, len(transactions)-1
+	for left <= right {
+		mid := (left + right) / 2
+		if transactions[mid].Height == int32(targetHeight) {
+			targetIndex = mid
+			break
+		}
+		if transactions[mid].Height < int32(targetHeight) {
+			left = mid + 1
+		} else {
+			right = mid - 1
+		}
+	}
+	return targetIndex
 }
 
 // createRawTransaction returns an unsigned transaction
