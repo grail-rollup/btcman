@@ -16,6 +16,6 @@ type Indexerer interface {
 	GetBlockchainInfo(ctx context.Context) (*BlockChainInfo, error)
 	SendTransaction(ctx context.Context, transactionHex *wire.MsgTx) (string, error)
 	GetLastInscribedTransactionsByPublicKey(ctx context.Context, publicKey *secp256k1.PublicKey, blockchainHeight int32, utxoThreshold float64) ([]*TxInfo, error)
-	GetBlockHeader(ctx context.Context, height uint64) (BlockHeaderHex, error)
+	GetBlockHeader(ctx context.Context, height uint64) (string, error)
 	Disconnect()
 }
