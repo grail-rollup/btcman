@@ -19,14 +19,16 @@ func (m *Indexer) Start(string) {}
 func (m *Indexer) ListUnspent(context.Context, *secp256k1.PublicKey) ([]*indexer.UTXO, error) {
 	return nil, nil
 }
-func (m *Indexer) GetHistory(context.Context, *secp256k1.PublicKey) ([]*indexer.Transaction, error) {
-	return nil, nil
+func (m *Indexer) GetHistory(ctx context.Context, publicKey *secp256k1.PublicKey) ([]*indexer.Transaction, error) {
+	args := m.Called(ctx, publicKey)
+	return args.Get(0).([]*indexer.Transaction), args.Error(1)
 }
 func (m *Indexer) GetTransaction(context.Context, string, bool) (*btcjson.TxRawResult, error) {
 	return nil, nil
 }
 func (m *Indexer) GetBlockchainInfo(ctx context.Context) (*indexer.BlockChainInfo, error) {
-	return nil, nil
+	args := m.Called(ctx)
+	return args.Get(0).(*indexer.BlockChainInfo), args.Error(1)
 }
 func (m *Indexer) SendTransaction(ctx context.Context, transactionHex *wire.MsgTx) (string, error) {
 	return "", nil

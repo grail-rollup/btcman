@@ -377,7 +377,7 @@ func (client *Client) ListUnspent() ([]*indexer.UTXO, error) {
 	return utxos, nil
 }
 
-// GetHistory returns the confirmed history of the scripthash, starting from the startHeight if > 1
+// GetHistory returns the confirmed history of the scripthash, starting from the startHeight if > 0
 func (client *Client) GetHistory(startHeight int, includeMempool bool) ([]*indexer.Transaction, error) {
 	transactions, err := client.IndexerClient.GetHistory(context.Background(), client.keychain.GetPublicKey())
 	if err != nil {
@@ -403,7 +403,7 @@ func (client *Client) GetHistory(startHeight int, includeMempool bool) ([]*index
 	}
 	ReverseTransactionList(confirmedTransactions)
 
-	if startHeight > 1 {
+	if startHeight > 0 {
 		blockchainHeight, err := client.GetBlockchainHeight()
 		if err != nil {
 			return nil, err
@@ -441,15 +441,12 @@ func getStartHeightIndex(transactions []*indexer.Transaction, targetHeight int) 
 	targetIndex := -1
 	left, right := 0, len(transactions)-1
 	for left <= right {
-		mid := (left + right) / 2
-		if transactions[mid].Height == int32(targetHeight) {
+		mid := left + (right-left)/2
+		if transactions[mid].Height >= int32(targetHeight) {
 			targetIndex = mid
-			break
-		}
-		if transactions[mid].Height < int32(targetHeight) {
-			left = mid + 1
-		} else {
 			right = mid - 1
+		} else {
+			left = mid + 1
 		}
 	}
 	return targetIndex

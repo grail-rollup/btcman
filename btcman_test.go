@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/grail-rollup/btcman/indexer"
 	"github.com/grail-rollup/btcman/mocks"
+	"github.com/ledgerwatch/log/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -74,20 +76,94 @@ func TestNewClient(t *testing.T) {
 	}
 }
 
+func TestGetHistory(t *testing.T) {
+	tests := []struct {
+		name           string
+		history        []*indexer.Transaction
+		startHeight    int
+		includeMempool bool
+		expectedSize   int
+		expectedError  error
+	}{
+		{
+			name: "without start height",
+			history: []*indexer.Transaction{
+				{TxHash: "hash1", Height: 1},
+				{TxHash: "hash2", Height: 2},
+				{TxHash: "hash3", Height: 3},
+			},
+			startHeight:    -1,
+			includeMempool: false,
+			expectedSize:   3,
+			expectedError:  nil,
+		},
+		{
+			name: "with start height",
+			history: []*indexer.Transaction{
+				{TxHash: "hash1", Height: 1},
+				{TxHash: "hash2", Height: 2},
+				{TxHash: "hash3", Height: 3},
+			},
+			startHeight:    1,
+			includeMempool: false,
+			expectedSize:   3,
+			expectedError:  nil,
+		},
+		{
+			name: "with start height between transactions",
+			history: []*indexer.Transaction{
+				{TxHash: "hash1", Height: 2},
+				{TxHash: "hash2", Height: 4},
+				{TxHash: "hash3", Height: 6},
+				{TxHash: "hash4", Height: 8},
+			},
+			startHeight:    5,
+			includeMempool: false,
+			expectedSize:   2,
+			expectedError:  nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			mockIndexer := new(mocks.Indexer)
+			keychain := new(mocks.Keychainer)
+			logger := log.New("testing")
+
+			btcman := &Client{
+				logger:                   logger,
+				keychain:                 keychain,
+				cfg:                      Config{},
+				netParams:                nil,
+				address:                  nil,
+				IndexerClient:            mockIndexer,
+				consolidationStopChannel: nil,
+				utxoThreshold:            0,
+				isDebug:                  false,
+			}
+
+			mockIndexer.On("GetHistory", mock.Anything, mock.Anything).Return(tt.history, nil)
+			mockIndexer.On("GetBlockchainInfo", mock.Anything).Return(&indexer.BlockChainInfo{Height: 1_000_000}, nil)
+
+			txs, err := btcman.GetHistory(tt.startHeight, tt.includeMempool)
+			assert.Equal(t, tt.expectedSize, len(txs))
+			if tt.expectedError != nil {
+				assert.ErrorIs(t, err, tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestGetBlockHeader(t *testing.T) {
 	mockIndexer := new(mocks.Indexer)
-	config := Config{
-		Mode:        string(ReaderMode),
-		Net:         "regtest",
-		PublicKey:   "03e392587e5c9fdb0b4f96614d8a557a953e6cb1253298a60ff947e3193adedbb7",
-		IndexerHost: "localhost",
-		IndexerPort: "0000",
-	}
 
 	btcman := &Client{
 		logger:                   nil,
 		keychain:                 nil,
-		cfg:                      config,
+		cfg:                      Config{},
 		netParams:                nil,
 		address:                  nil,
 		IndexerClient:            mockIndexer,
