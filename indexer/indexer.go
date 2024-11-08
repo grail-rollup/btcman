@@ -286,10 +286,10 @@ func (i *Indexer) ping(ctx context.Context) error {
 }
 
 // GetBlockHeader returns a Block header hex string
-func (i *Indexer) GetBlockHeader(ctx context.Context, height uint64) (BlockHeaderHex, error) {
+func (i *Indexer) GetBlockHeader(ctx context.Context, height uint64) (string, error) {
 	const method string = "blockchain.block.header"
 	resp := &struct {
-		Result BlockHeaderHex `json:"result"`
+		Result string `json:"result"`
 	}{}
 	err := i.request(ctx, method, []interface{}{height}, &resp)
 	if err != nil {
