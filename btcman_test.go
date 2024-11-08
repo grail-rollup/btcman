@@ -104,6 +104,5 @@ func TestGetBlockHeader(t *testing.T) {
 	bh1, _ := btcman.GetBlockHeader(1)
 	bh2, _ := btcman.GetBlockHeader(2)
 
-	fmt.Println(bh1, bh2)
 	assert.Equal(t, bh2.PrevBlock, bh1.BlockHash())
 }
