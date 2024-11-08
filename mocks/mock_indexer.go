@@ -15,27 +15,27 @@ type Indexer struct {
 	mock.Mock
 }
 
-func (m Indexer) Start(string) {}
-func (m Indexer) ListUnspent(context.Context, *secp256k1.PublicKey) ([]*indexer.UTXO, error) {
+func (m *Indexer) Start(string) {}
+func (m *Indexer) ListUnspent(context.Context, *secp256k1.PublicKey) ([]*indexer.UTXO, error) {
 	return nil, nil
 }
-func (m Indexer) GetHistory(context.Context, *secp256k1.PublicKey) ([]*indexer.Transaction, error) {
+func (m *Indexer) GetHistory(context.Context, *secp256k1.PublicKey) ([]*indexer.Transaction, error) {
 	return nil, nil
 }
-func (m Indexer) GetTransaction(context.Context, string, bool) (*btcjson.TxRawResult, error) {
+func (m *Indexer) GetTransaction(context.Context, string, bool) (*btcjson.TxRawResult, error) {
 	return nil, nil
 }
-func (m Indexer) GetBlockchainInfo(ctx context.Context) (*indexer.BlockChainInfo, error) {
+func (m *Indexer) GetBlockchainInfo(ctx context.Context) (*indexer.BlockChainInfo, error) {
 	return nil, nil
 }
-func (m Indexer) SendTransaction(ctx context.Context, transactionHex *wire.MsgTx) (string, error) {
+func (m *Indexer) SendTransaction(ctx context.Context, transactionHex *wire.MsgTx) (string, error) {
 	return "", nil
 }
-func (m Indexer) GetLastInscribedTransactionsByPublicKey(ctx context.Context, publicKey *secp256k1.PublicKey, blockchainHeight int32, utxoThreshold float64) ([]*indexer.TxInfo, error) {
+func (m *Indexer) GetLastInscribedTransactionsByPublicKey(ctx context.Context, publicKey *secp256k1.PublicKey, blockchainHeight int32, utxoThreshold float64) ([]*indexer.TxInfo, error) {
 	return nil, nil
 }
-func (m Indexer) GetBlockHeader(ctx context.Context, height uint64) (string, error) {
+func (m *Indexer) GetBlockHeader(ctx context.Context, height uint64) (string, error) {
 	args := m.Called(ctx, height)
 	return args.Get(0).(string), args.Error(1)
 }
-func (m Indexer) Disconnect() {}
+func (m *Indexer) Disconnect() {}
